@@ -95,7 +95,7 @@ def get_cached_dataset(dataset_name: str) -> pd.DataFrame:
     return generate_cities(11, seed=42)
 
 
-def create_plotly_tour_map(coords: np.ndarray, tour: list[int] | None, title: str, color: str = "#38bdf8", city_names: list[str] | None = None) -> go.Figure:
+def create_plotly_tour_map(coords: np.ndarray, tour: list[int] | None, title: str, color: str = "#38bdf8", city_names: list[str] | None = None, height: int = 500) -> go.Figure:
     """Create an interactive Plotly 2D tour visualization."""
     fig = go.Figure()
     n = len(coords)
@@ -178,7 +178,7 @@ def create_plotly_tour_map(coords: np.ndarray, tour: list[int] | None, title: st
             font=dict(color="#94a3b8"),
         ),
         margin=dict(l=40, r=40, t=50, b=40),
-        height=520,
+        height=height,
     )
     return fig
 
@@ -273,8 +273,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-tab_visualizer, tab_comparison, tab_precomputed, tab_theory = st.tabs([
-    "🗺️ Interactive Route Map",
+tab_split, tab_visualizer, tab_comparison, tab_precomputed, tab_theory = st.tabs([
+    "⚔️ Side-by-Side Split View",
+    "🗺️ Single Route Map",
     "⚡ Algorithm Comparison",
     "📊 Benchmarks & Scalability",
     "📚 Theory & Viva Notes",
@@ -291,8 +292,128 @@ if "last_results" not in st.session_state or start_button or st.session_state.ge
 results_df = st.session_state["last_results"]
 ok_results = results_df[results_df["status"] == "ok"]
 
+city_names = cities_df["city_name"].tolist() if "city_name" in cities_df.columns else None
+
 # -----------------------------------------------------------------------------
-# TAB 1: INTERACTIVE ROUTE MAP
+# TAB: SIDE-BY-SIDE SPLIT VIEW
+# -----------------------------------------------------------------------------
+with tab_split:
+    st.markdown("### ⚔️ Side-by-Side Algorithm Comparison (Split View)")
+    st.caption("Visually inspect and compare route geometry, cost and execution time of two algorithms on identical cities.")
+
+    if len(ok_results) < 2:
+        st.warning("⚠️ Please select at least two algorithms in the sidebar to view side-by-side comparison.")
+    else:
+        ok_algo_list = ok_results["algorithm"].tolist()
+
+        # Sensible defaults: Nearest Neighbor on Left, Christofides on Right
+        default_left_idx = ok_algo_list.index("Nearest Neighbor") if "Nearest Neighbor" in ok_algo_list else 0
+        default_right_idx = ok_algo_list.index("Christofides") if "Christofides" in ok_algo_list else (1 if len(ok_algo_list) > 1 else 0)
+
+        sel_col1, sel_col2 = st.columns(2)
+        with sel_col1:
+            left_algo_name = st.selectbox("👈 Left Algorithm:", ok_algo_list, index=default_left_idx, key="split_left")
+        with sel_col2:
+            right_algo_name = st.selectbox("👉 Right Algorithm:", ok_algo_list, index=default_right_idx, key="split_right")
+
+        left_row = ok_results[ok_results["algorithm"] == left_algo_name].iloc[0]
+        right_row = ok_results[ok_results["algorithm"] == right_algo_name].iloc[0]
+
+        left_cost, right_cost = left_row["tour_cost"], right_row["tour_cost"]
+        left_time, right_time = left_row["time_s"] * 1000, right_row["time_s"] * 1000
+
+        # Comparative Highlights Banner
+        cost_diff = abs(left_cost - right_cost)
+        if left_cost < right_cost:
+            pct_diff = ((right_cost - left_cost) / right_cost) * 100
+            st.success(f"🏆 **{left_algo_name}** found a **{pct_diff:.1f}% shorter route** (Total: {left_cost:.2f} vs {right_cost:.2f}, saving {cost_diff:.2f} distance units)!")
+        elif right_cost < left_cost:
+            pct_diff = ((left_cost - right_cost) / left_cost) * 100
+            st.success(f"🏆 **{right_algo_name}** found a **{pct_diff:.1f}% shorter route** (Total: {right_cost:.2f} vs {left_cost:.2f}, saving {cost_diff:.2f} distance units)!")
+        else:
+            st.info(f"🤝 Both **{left_algo_name}** and **{right_algo_name}** found the exact same route length ({left_cost:.2f})!")
+
+        # Dual Map Columns
+        split_left_col, split_right_col = st.columns(2)
+
+        # LEFT ALGORITHM CARD & MAP
+        with split_left_col:
+            st.markdown(f"#### 📍 {left_algo_name} (`{left_row['type']}`)")
+            lm1, lm2 = st.columns(2)
+            with lm1:
+                st.metric("Total Route Distance", f"{left_cost:.2f}")
+            with lm2:
+                st.metric("Compute Time", f"{left_time:.3f} ms" if left_time >= 0.01 else "< 0.01 ms")
+
+            if HAS_PLOTLY:
+                fig_l = create_plotly_tour_map(
+                    coords,
+                    left_row["tour"],
+                    title=f"{left_algo_name} Route ({left_cost:.2f})",
+                    color=ALGO_COLORS.get(left_algo_name, "#D55E00"),
+                    city_names=city_names,
+                    height=450,
+                )
+                st.plotly_chart(fig_l, use_container_width=True)
+            else:
+                fig_l = viz.plot_tour(
+                    coords,
+                    left_row["tour"],
+                    title=f"{left_algo_name} ({left_cost:.2f})",
+                    cost=left_cost,
+                    color=ALGO_COLORS.get(left_algo_name, "#D55E00"),
+                )
+                st.pyplot(fig_l)
+                plt.close(fig_l)
+
+            with st.expander(f"📜 {left_algo_name} Order of Visit"):
+                if left_row["tour"]:
+                    if city_names and len(city_names) >= n:
+                        st.markdown("**City Names:**")
+                        st.code(" → ".join(city_names[i] for i in left_row["tour"]), language="text")
+                    st.markdown("**City IDs:**")
+                    st.code(" → ".join(map(str, left_row["tour"])), language="text")
+
+        # RIGHT ALGORITHM CARD & MAP
+        with split_right_col:
+            st.markdown(f"#### 📍 {right_algo_name} (`{right_row['type']}`)")
+            rm1, rm2 = st.columns(2)
+            with rm1:
+                st.metric("Total Route Distance", f"{right_cost:.2f}")
+            with rm2:
+                st.metric("Compute Time", f"{right_time:.3f} ms" if right_time >= 0.01 else "< 0.01 ms")
+
+            if HAS_PLOTLY:
+                fig_r = create_plotly_tour_map(
+                    coords,
+                    right_row["tour"],
+                    title=f"{right_algo_name} Route ({right_cost:.2f})",
+                    color=ALGO_COLORS.get(right_algo_name, "#009E73"),
+                    city_names=city_names,
+                    height=450,
+                )
+                st.plotly_chart(fig_r, use_container_width=True)
+            else:
+                fig_r = viz.plot_tour(
+                    coords,
+                    right_row["tour"],
+                    title=f"{right_algo_name} ({right_cost:.2f})",
+                    cost=right_cost,
+                    color=ALGO_COLORS.get(right_algo_name, "#009E73"),
+                )
+                st.pyplot(fig_r)
+                plt.close(fig_r)
+
+            with st.expander(f"📜 {right_algo_name} Order of Visit"):
+                if right_row["tour"]:
+                    if city_names and len(city_names) >= n:
+                        st.markdown("**City Names:**")
+                        st.code(" → ".join(city_names[i] for i in right_row["tour"]), language="text")
+                    st.markdown("**City IDs:**")
+                    st.code(" → ".join(map(str, right_row["tour"])), language="text")
+
+# -----------------------------------------------------------------------------
+# TAB: SINGLE ROUTE MAP
 # -----------------------------------------------------------------------------
 with tab_visualizer:
     if ok_results.empty:
