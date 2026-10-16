@@ -39,13 +39,38 @@ DATASET_SPECS = {
 AREA_SIZE = 100.0
 
 
+INDIAN_MAJOR_CITIES = [
+    "Mumbai", "Delhi", "Bengaluru", "Hyderabad", "Ahmedabad", "Chennai", "Kolkata", "Surat", "Pune", "Jaipur",
+    "Lucknow", "Kanpur", "Nagpur", "Indore", "Thane", "Bhopal", "Visakhapatnam", "Pimpri-Chinchwad", "Patna", "Vadodara",
+    "Ghaziabad", "Ludhiana", "Agra", "Nashik", "Faridabad", "Meerut", "Rajkot", "Kalyan", "Vasai", "Varanasi",
+    "Srinagar", "Aurangabad", "Dhanbad", "Amritsar", "Navi Mumbai", "Prayagraj", "Ranchi", "Howrah", "Coimbatore", "Jabalpur",
+    "Gwalior", "Vijayawada", "Jodhpur", "Madurai", "Raipur", "Kota", "Guwahati", "Chandigarh", "Solapur", "Hubballi",
+    "Bareilly", "Moradabad", "Mysuru", "Gurugram", "Aligarh", "Jalandhar", "Tiruchirappalli", "Bhubaneswar", "Salem", "Mira-Bhayandar",
+    "Warangal", "Thiruvananthapuram", "Bhiwandi", "Saharanpur", "Guntur", "Amravati", "Bikaner", "Noida", "Jamshedpur", "Bhilai",
+    "Cuttack", "Firozabad", "Kochi", "Nellore", "Bhavnagar", "Dehradun", "Durgapur", "Asansol", "Rourkela", "Nanded",
+    "Kolhapur", "Ajmer", "Akola", "Gulbarga", "Jamnagar", "Ujjain", "Loni", "Siliguri", "Jhansi", "Ulhasnagar",
+    "Jammu", "Sangli", "Mangaluru", "Erode", "Belagavi", "Kurnool", "Ambattur", "Rajahmundry", "Tirunelveli", "Malegaon"
+]
+
+
+def get_city_names(n: int) -> list[str]:
+    """Return a deterministic list of city names of length n."""
+    if n <= len(INDIAN_MAJOR_CITIES):
+        return INDIAN_MAJOR_CITIES[:n]
+    extended = list(INDIAN_MAJOR_CITIES)
+    for i in range(len(INDIAN_MAJOR_CITIES), n):
+        extended.append(f"Sector_{i + 1}")
+    return extended
+
+
 def generate_cities(n: int, seed: int, area: float = AREA_SIZE) -> pd.DataFrame:
-    """Return a DataFrame ``city_id, x, y`` with ``n`` random cities in ``[0, area]^2``."""
+    """Return a DataFrame ``city_id, city_name, x, y`` with ``n`` random cities in ``[0, area]^2``."""
     if n < 1:
         raise ValueError("n must be at least 1")
     rng = np.random.default_rng(seed)
     xy = np.round(rng.uniform(0.0, area, size=(n, 2)), 2)
-    return pd.DataFrame({"city_id": np.arange(n), "x": xy[:, 0], "y": xy[:, 1]})
+    names = get_city_names(n)
+    return pd.DataFrame({"city_id": np.arange(n), "city_name": names, "x": xy[:, 0], "y": xy[:, 1]})
 
 
 # City labels and integer grid coordinates of the hand-made sample matrix.

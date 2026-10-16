@@ -95,10 +95,12 @@ def get_cached_dataset(dataset_name: str) -> pd.DataFrame:
     return generate_cities(11, seed=42)
 
 
-def create_plotly_tour_map(coords: np.ndarray, tour: list[int] | None, title: str, color: str = "#38bdf8") -> go.Figure:
+def create_plotly_tour_map(coords: np.ndarray, tour: list[int] | None, title: str, color: str = "#38bdf8", city_names: list[str] | None = None) -> go.Figure:
     """Create an interactive Plotly 2D tour visualization."""
     fig = go.Figure()
     n = len(coords)
+    if city_names is None or len(city_names) < n:
+        city_names = [f"City {i}" for i in range(n)]
 
     # Plot tour edges if available
     if tour is not None and len(tour) > 1:
@@ -121,28 +123,31 @@ def create_plotly_tour_map(coords: np.ndarray, tour: list[int] | None, title: st
             go.Scatter(
                 x=coords[non_start_idx, 0],
                 y=coords[non_start_idx, 1],
+                customdata=non_start_idx,
                 mode="markers+text" if n <= 30 else "markers",
-                text=[f"City {i}" for i in non_start_idx],
+                text=[city_names[i] for i in non_start_idx],
                 textposition="top center",
                 textfont=dict(size=10, color="#cbd5e1"),
                 marker=dict(size=8 if n > 50 else 11, color="#38bdf8", line=dict(color="#0f172a", width=1.5)),
                 name="Cities",
-                hovertemplate="<b>City %{text}</b><br>X: %{x:.2f}<br>Y: %{y:.2f}<extra></extra>",
+                hovertemplate="<b>%{text}</b> (ID: %{customdata})<br>X: %{x:.2f}<br>Y: %{y:.2f}<extra></extra>",
             )
         )
 
     # Highlight Start City 0
+    start_label = f"Start: {city_names[0]}"
     fig.add_trace(
         go.Scatter(
             x=[coords[0, 0]],
             y=[coords[0, 1]],
+            customdata=[0],
             mode="markers+text",
-            text=["Start (City 0)"],
+            text=[start_label],
             textposition="bottom center",
             textfont=dict(size=11, color="#f59e0b", family="sans-serif"),
             marker=dict(size=14, color="#ef4444", symbol="star", line=dict(color="#ffffff", width=2)),
             name="Start City",
-            hovertemplate="<b>Start City 0</b><br>X: %{x:.2f}<br>Y: %{y:.2f}<extra></extra>",
+            hovertemplate=f"<b>{start_label}</b> (ID: 0)<br>X: %{{x:.2f}}<br>Y: %{{y:.2f}}<extra></extra>",
         )
     )
 
@@ -319,12 +324,14 @@ with tab_visualizer:
             st.metric(label="Valid Tour?", value="✅ Valid" if valid else "❌ Invalid")
 
         # Tour Map: Interactive Plotly if available, else clean Matplotlib
+        city_names = cities_df["city_name"].tolist() if "city_name" in cities_df.columns else None
         if HAS_PLOTLY:
             fig = create_plotly_tour_map(
                 coords,
                 tour,
                 title=f"{view_algo} Tour (Total Distance: {cost:.2f})",
                 color=ALGO_COLORS.get(view_algo, "#38bdf8"),
+                city_names=city_names,
             )
             st.plotly_chart(fig, use_container_width=True)
         else:
@@ -340,9 +347,15 @@ with tab_visualizer:
 
         with st.expander("📍 View Tour Sequence (Order of Cities Visited)"):
             if tour is not None:
+                if city_names is not None and len(city_names) >= n:
+                    named_tour = " → ".join(city_names[i] for i in tour)
+                    st.markdown("**🏙️ By City Name:**")
+                    st.code(named_tour, language="text")
                 tour_str = " → ".join(map(str, tour))
+                st.markdown("**🔢 By City ID:**")
                 st.code(tour_str, language="text")
-                st.caption(f"Starts at City 0, visits all {n} unique cities, and returns to City 0.")
+                start_name = city_names[0] if city_names else "City 0"
+                st.caption(f"Starts at {start_name} (City 0), visits all {n} unique cities, and returns to {start_name}.")
 
 # -----------------------------------------------------------------------------
 # TAB 2: ALGORITHM COMPARISON

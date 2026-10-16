@@ -31,6 +31,7 @@ inequality (a *metric* instance).
 | Column | Type | Meaning |
 |--------|------|---------|
 | `city_id` | integer | 0-based city index. City `0` is the start/end city of every tour. |
+| `city_name` | string | Name of the city / location (e.g., Mumbai, Pune, Nagpur, etc.). |
 | `x` | float | x coordinate (distance units, 0-100) |
 | `y` | float | y coordinate (distance units, 0-100) |
 
