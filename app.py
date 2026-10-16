@@ -250,16 +250,12 @@ for algo_name, spec in bm.ALGORITHMS.items():
         available_algos.append(algo_name)
 
 if n > 11:
-    st.sidebar.caption(f"⚠️ Exact exponential algorithms automatically hidden/disabled for n={n} to prevent UI freezing.")
+    st.sidebar.caption(f"⚠️ Exact algorithms (Brute Force, Held-Karp, Branch & Bound) disabled for n={n} to prevent exponential delay.")
 
 selected_algos = st.sidebar.multiselect(
     "Select Algorithms to Run:",
-    options=list(bm.ALGORITHMS.keys()),
-    default=available_algos if len(available_algos) <= 6 else [
-        "Nearest Neighbor",
-        "MST Preorder",
-        "Christofides",
-    ],
+    options=available_algos,
+    default=available_algos,
 )
 
 start_button = st.sidebar.button("🚀 Solve / Compare", type="primary", use_container_width=True)
@@ -306,15 +302,31 @@ with tab_split:
     else:
         ok_algo_list = ok_results["algorithm"].tolist()
 
-        # Sensible defaults: Nearest Neighbor on Left, Christofides on Right
-        default_left_idx = ok_algo_list.index("Nearest Neighbor") if "Nearest Neighbor" in ok_algo_list else 0
-        default_right_idx = ok_algo_list.index("Christofides") if "Christofides" in ok_algo_list else (1 if len(ok_algo_list) > 1 else 0)
+        # Dynamic smart defaults based on dataset size:
+        # If Small (n <= 11): default to Exact algorithms (Held-Karp DP vs Branch and Bound)
+        if n <= 11 and "Held-Karp DP" in ok_algo_list and "Branch and Bound" in ok_algo_list:
+            default_left_name = "Held-Karp DP"
+            default_right_name = "Branch and Bound"
+        elif "Nearest Neighbor" in ok_algo_list and "Christofides" in ok_algo_list:
+            default_left_name = "Nearest Neighbor"
+            default_right_name = "Christofides"
+        else:
+            default_left_name = ok_algo_list[0]
+            default_right_name = ok_algo_list[1] if len(ok_algo_list) > 1 else ok_algo_list[0]
+
+        default_left_idx = ok_algo_list.index(default_left_name) if default_left_name in ok_algo_list else 0
+        default_right_idx = ok_algo_list.index(default_right_name) if default_right_name in ok_algo_list else (1 if len(ok_algo_list) > 1 else 0)
 
         sel_col1, sel_col2 = st.columns(2)
         with sel_col1:
-            left_algo_name = st.selectbox("👈 Left Algorithm:", ok_algo_list, index=default_left_idx, key="split_left")
+            left_algo_name = st.selectbox("👈 Left Algorithm:", ok_algo_list, index=default_left_idx, key=f"split_left_{dataset_name}")
         with sel_col2:
-            right_algo_name = st.selectbox("👉 Right Algorithm:", ok_algo_list, index=default_right_idx, key="split_right")
+            right_algo_name = st.selectbox("👉 Right Algorithm:", ok_algo_list, index=default_right_idx, key=f"split_right_{dataset_name}")
+
+        if n <= 11:
+            st.info("💡 **Small Dataset (11 cities):** Showing Exact algorithms (**Held-Karp DP vs Branch and Bound**) by default. You can also pick Brute Force, Nearest Neighbor, MST Preorder, or Christofides from the dropdowns above!")
+        else:
+            st.info(f"💡 **Large/Medium Dataset ({n} cities):** Showing fast Approximation algorithms (**Nearest Neighbor vs Christofides**). Exact algorithms are automatically disabled for n > 11 to prevent exponential freezing.")
 
         left_row = ok_results[ok_results["algorithm"] == left_algo_name].iloc[0]
         right_row = ok_results[ok_results["algorithm"] == right_algo_name].iloc[0]
