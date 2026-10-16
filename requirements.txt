@@ -12,3 +12,7 @@ ipykernel>=6.0
 
 # Optional: run the test-suite with pytest (the tests also run with the built-in unittest module)
 pytest>=7.0
+
+# Interactive Web Application UI
+streamlit>=1.30.0
+plotly>=5.18.0

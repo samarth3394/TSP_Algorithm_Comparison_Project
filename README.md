@@ -32,6 +32,12 @@ pip install -r requirements.txt
 
 ## Running the project
 
+**Interactive Web App (Streamlit UI).** Visualizer & live benchmark dashboard:
+
+```bash
+streamlit run app.py
+```
+
 **Notebook (main way).**
 
 ```bash
