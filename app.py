@@ -11,9 +11,15 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
+import matplotlib.pyplot as plt
 import streamlit as st
+
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+    HAS_PLOTLY = True
+except ImportError:
+    HAS_PLOTLY = False
 
 # Setup project root path
 ROOT = Path(__file__).resolve().parent
@@ -312,14 +318,25 @@ with tab_visualizer:
             valid = algo_row["valid_tour"]
             st.metric(label="Valid Tour?", value="✅ Valid" if valid else "❌ Invalid")
 
-        # Interactive Plotly Map
-        fig = create_plotly_tour_map(
-            coords,
-            tour,
-            title=f"{view_algo} Tour (Total Distance: {cost:.2f})",
-            color=ALGO_COLORS.get(view_algo, "#38bdf8"),
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        # Tour Map: Interactive Plotly if available, else clean Matplotlib
+        if HAS_PLOTLY:
+            fig = create_plotly_tour_map(
+                coords,
+                tour,
+                title=f"{view_algo} Tour (Total Distance: {cost:.2f})",
+                color=ALGO_COLORS.get(view_algo, "#38bdf8"),
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            fig = viz.plot_tour(
+                coords,
+                tour,
+                title=f"{view_algo} Tour (Distance: {cost:.2f})",
+                cost=cost,
+                color=ALGO_COLORS.get(view_algo, "#0072B2"),
+            )
+            st.pyplot(fig)
+            plt.close(fig)
 
         with st.expander("📍 View Tour Sequence (Order of Cities Visited)"):
             if tour is not None:
@@ -356,47 +373,57 @@ with tab_comparison:
         col_chart1, col_chart2 = st.columns(2)
 
         with col_chart1:
-            fig_cost = px.bar(
-                ok_results,
-                x="algorithm",
-                y="tour_cost",
-                color="algorithm",
-                color_discrete_map=ALGO_COLORS,
-                title="Tour Distance (Lower is Better)",
-                labels={"tour_cost": "Tour Length", "algorithm": "Algorithm"},
-                text_auto=".2f",
-            )
-            fig_cost.update_layout(
-                plot_bgcolor="#0f172a",
-                paper_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#cbd5e1"),
-                showlegend=False,
-                margin=dict(l=30, r=30, t=40, b=30),
-            )
-            st.plotly_chart(fig_cost, use_container_width=True)
+            if HAS_PLOTLY:
+                fig_cost = px.bar(
+                    ok_results,
+                    x="algorithm",
+                    y="tour_cost",
+                    color="algorithm",
+                    color_discrete_map=ALGO_COLORS,
+                    title="Tour Distance (Lower is Better)",
+                    labels={"tour_cost": "Tour Length", "algorithm": "Algorithm"},
+                    text_auto=".2f",
+                )
+                fig_cost.update_layout(
+                    plot_bgcolor="#0f172a",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="#cbd5e1"),
+                    showlegend=False,
+                    margin=dict(l=30, r=30, t=40, b=30),
+                )
+                st.plotly_chart(fig_cost, use_container_width=True)
+            else:
+                st.markdown("##### Tour Distance (Lower is Better)")
+                chart_cost_df = ok_results.set_index("algorithm")[["tour_cost"]]
+                st.bar_chart(chart_cost_df)
 
         with col_chart2:
             ok_plot = ok_results.copy()
             ok_plot["time_ms"] = ok_plot["time_s"] * 1000
-            fig_time = px.bar(
-                ok_plot,
-                x="algorithm",
-                y="time_ms",
-                color="algorithm",
-                color_discrete_map=ALGO_COLORS,
-                title="Execution Time in ms (Lower is Better - Log Scale)",
-                log_y=True if ok_plot["time_ms"].max() / (ok_plot["time_ms"].min() + 1e-6) > 20 else False,
-                labels={"time_ms": "Time (ms)", "algorithm": "Algorithm"},
-                text_auto=".3f",
-            )
-            fig_time.update_layout(
-                plot_bgcolor="#0f172a",
-                paper_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#cbd5e1"),
-                showlegend=False,
-                margin=dict(l=30, r=30, t=40, b=30),
-            )
-            st.plotly_chart(fig_time, use_container_width=True)
+            if HAS_PLOTLY:
+                fig_time = px.bar(
+                    ok_plot,
+                    x="algorithm",
+                    y="time_ms",
+                    color="algorithm",
+                    color_discrete_map=ALGO_COLORS,
+                    title="Execution Time in ms (Lower is Better)",
+                    log_y=True if ok_plot["time_ms"].max() / (ok_plot["time_ms"].min() + 1e-6) > 20 else False,
+                    labels={"time_ms": "Time (ms)", "algorithm": "Algorithm"},
+                    text_auto=".3f",
+                )
+                fig_time.update_layout(
+                    plot_bgcolor="#0f172a",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="#cbd5e1"),
+                    showlegend=False,
+                    margin=dict(l=30, r=30, t=40, b=30),
+                )
+                st.plotly_chart(fig_time, use_container_width=True)
+            else:
+                st.markdown("##### Execution Time in ms (Lower is Better)")
+                chart_time_df = ok_plot.set_index("algorithm")[["time_ms"]]
+                st.bar_chart(chart_time_df)
 
         # Full Data Table
         st.markdown("#### 📋 Detailed Comparison Table")
