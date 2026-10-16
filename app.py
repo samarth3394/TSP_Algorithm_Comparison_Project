@@ -28,7 +28,7 @@ if str(ROOT) not in sys.path:
 
 from src import benchmarking as bm
 from src import visualization as viz
-from src.data_generator import generate_cities
+from src.data_generator import generate_cities, get_city_names
 from src.distance_utils import (
     coords_from_dataframe,
     euclidean_distance_matrix,
@@ -86,12 +86,13 @@ st.markdown(
 
 ALGO_COLORS = viz.ALGO_COLORS
 
-# Cache dataset loading
-@st.cache_data
 def get_cached_dataset(dataset_name: str) -> pd.DataFrame:
     path = ROOT / "datasets" / f"cities_{dataset_name}.csv"
     if path.exists():
-        return load_cities_csv(path)
+        df = pd.read_csv(path)
+        if "city_name" not in df.columns:
+            df["city_name"] = get_city_names(len(df))
+        return df
     return generate_cities(11, seed=42)
 
 
@@ -230,6 +231,10 @@ else:
         st.sidebar.info("Upload a CSV with columns `city_id, x, y`. Defaulting to Small dataset.")
         cities_df = get_cached_dataset("small")
         dataset_name = "small"
+
+if "city_name" not in cities_df.columns:
+    cities_df["city_name"] = get_city_names(len(cities_df))
+city_names = cities_df["city_name"].tolist()
 
 coords = coords_from_dataframe(cities_df)
 D = validate_distance_matrix(euclidean_distance_matrix(coords))
@@ -378,12 +383,12 @@ with tab_split:
                 st.pyplot(fig_l)
                 plt.close(fig_l)
 
-            with st.expander(f"📜 {left_algo_name} Order of Visit"):
+            with st.expander(f"📜 {left_algo_name} Order of Visit", expanded=True):
                 if left_row["tour"]:
-                    if city_names and len(city_names) >= n:
-                        st.markdown("**City Names:**")
-                        st.code(" → ".join(city_names[i] for i in left_row["tour"]), language="text")
-                    st.markdown("**City IDs:**")
+                    named_tour = " → ".join(city_names[i] for i in left_row["tour"])
+                    st.markdown("**🏙️ City Names:**")
+                    st.code(named_tour, language="text")
+                    st.markdown("**🔢 City IDs:**")
                     st.code(" → ".join(map(str, left_row["tour"])), language="text")
 
         # RIGHT ALGORITHM CARD & MAP
@@ -416,12 +421,12 @@ with tab_split:
                 st.pyplot(fig_r)
                 plt.close(fig_r)
 
-            with st.expander(f"📜 {right_algo_name} Order of Visit"):
+            with st.expander(f"📜 {right_algo_name} Order of Visit", expanded=True):
                 if right_row["tour"]:
-                    if city_names and len(city_names) >= n:
-                        st.markdown("**City Names:**")
-                        st.code(" → ".join(city_names[i] for i in right_row["tour"]), language="text")
-                    st.markdown("**City IDs:**")
+                    named_tour = " → ".join(city_names[i] for i in right_row["tour"])
+                    st.markdown("**🏙️ City Names:**")
+                    st.code(named_tour, language="text")
+                    st.markdown("**🔢 City IDs:**")
                     st.code(" → ".join(map(str, right_row["tour"])), language="text")
 
 # -----------------------------------------------------------------------------
